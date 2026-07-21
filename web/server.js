@@ -146,14 +146,13 @@ app.post('/api/order-tracking', async (req, res) => {
 
     const sessionStore = await readSessionStore();
     const shop = await resolveShop(sessionStore, shopIdentity);
-    let session = shop ? sessionStore.shops[shop] : null;
+    const session = shop ? sessionStore.shops[shop] : null;
 
     if (!session?.accessToken) {
-      session = await createSessionFromTokenExchange(sessionStore, shopIdentity, token);
-    }
-
-    if (!session?.accessToken) {
-      res.status(401).json({ok: false, error: 'App is not installed for this store.'});
+      res.status(401).json({
+        ok: false,
+        error: 'Store is not connected yet. Open Track Order Hub in Shopify Admin once, then refresh this page.',
+      });
       return;
     }
 
