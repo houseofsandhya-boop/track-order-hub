@@ -19,6 +19,7 @@
     "express": "^4.19.2"
   },
   "devDependencies": {
+    "@preact/signals": "^2.9.4",
     "@shopify/ui-extensions": "latest",
     "preact": "^10.26.4"
   }
