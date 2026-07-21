@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@preact/signals": "^2.9.4",
     "@shopify/ui-extensions": "latest",
     "preact": "^10.26.4"
   }
