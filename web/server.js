@@ -27,18 +27,16 @@ const app = express();
 app.use(express.json({limit: '1mb'}));
 app.use(cors);
 
-app.get('/', (_req, res) => {
-  res.type('html').send(`
-    <main style="font-family: system-ui, sans-serif; max-width: 760px; margin: 48px auto; line-height: 1.5;">
-      <h1>Track Order Hub</h1>
-      <p>This Shopify app adds an order tracking block to the Customer Accounts order status page.</p>
-      <p>Install path: <code>/auth?shop=your-store.myshopify.com</code></p>
-    </main>
-  `);
+app.get('/', (req, res) => {
+  const shop = normalizeShop(req.query.shop);
+  res.type('html').send(renderAppHome(shop));
 });
 
 app.get('/healthz', (_req, res) => {
-  res.json({ok: true});
+  res.json({
+    ok: true,
+    commit: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) || 'local',
+  });
 });
 
 app.get('/auth', (req, res) => {
@@ -164,6 +162,37 @@ app.post('/api/order-tracking', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(401).json({ok: false, error: 'Tracking request could not be authenticated.'});
+  }
+});
+
+app.post('/api/admin/connect', async (req, res) => {
+  try {
+    const token = readBearerToken(req);
+    const payload = verifySessionToken(token);
+    const shopIdentity = extractShopIdentityFromSessionToken(payload);
+
+    if (!shopIdentity.shop && !shopIdentity.shopId && !shopIdentity.shopLegacyId) {
+      res.status(401).json({ok: false, error: 'Could not identify the shop for this app session.'});
+      return;
+    }
+
+    const sessionStore = await readSessionStore();
+    const session = await createSessionFromTokenExchange(sessionStore, shopIdentity, token);
+
+    if (!session?.accessToken) {
+      res.status(401).json({ok: false, error: 'Could not connect this store. Reopen the app from Shopify Admin.'});
+      return;
+    }
+
+    res.json({
+      ok: true,
+      shop: session.myshopifyDomain,
+      shopLegacyId: session.shopLegacyId,
+      name: session.name,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(401).json({ok: false, error: 'Admin app session could not be authenticated.'});
   }
 });
 
@@ -607,6 +636,139 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+function renderAppHome(shop) {
+  const installPath = `/auth?shop=${encodeURIComponent(shop || 'your-store.myshopify.com')}`;
+  const installLabel = `${config.appUrl}${installPath}`;
+
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="shopify-api-key" content="${escapeHtml(config.apiKey || '')}" />
+        <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+        <style>
+          body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            margin: 0;
+            color: #111827;
+            background: #f6f6f7;
+          }
+          main {
+            max-width: 780px;
+            margin: 56px auto;
+            padding: 0 24px;
+            line-height: 1.5;
+          }
+          section {
+            background: #fff;
+            border: 1px solid #dedede;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+          }
+          h1 {
+            margin: 0 0 12px;
+            font-size: 28px;
+          }
+          p {
+            margin: 8px 0;
+          }
+          .status {
+            margin-top: 18px;
+            padding: 12px 14px;
+            border-radius: 8px;
+            border: 1px solid #d4d4d8;
+            background: #fafafa;
+          }
+          .success {
+            border-color: #b8e6c9;
+            background: #effaf3;
+          }
+          .warning {
+            border-color: #ffd79d;
+            background: #fff7ed;
+          }
+          .error {
+            border-color: #f4b8b8;
+            background: #fff1f1;
+          }
+          code {
+            background: #f1f1f1;
+            border-radius: 4px;
+            padding: 2px 5px;
+          }
+          a.button {
+            display: inline-block;
+            margin-top: 14px;
+            padding: 10px 14px;
+            border-radius: 7px;
+            color: #fff;
+            background: #008060;
+            text-decoration: none;
+            font-weight: 650;
+          }
+        </style>
+      </head>
+      <body>
+        <main>
+          <section>
+            <h1>Track Order Hub</h1>
+            <p>This app adds an order tracking block to the Customer Accounts order status page.</p>
+            <p id="subtitle">Connecting this store...</p>
+            <div id="status" class="status">Waiting for Shopify Admin session.</div>
+            <a class="button" href="${escapeHtml(installPath)}">Reconnect with OAuth</a>
+            <p><small>Manual connect URL: <code>${escapeHtml(installLabel)}</code></small></p>
+          </section>
+        </main>
+        <script>
+          const statusBox = document.getElementById('status');
+          const subtitle = document.getElementById('subtitle');
+
+          function setStatus(message, className) {
+            statusBox.textContent = message;
+            statusBox.className = 'status ' + (className || '');
+          }
+
+          async function connectStore() {
+            if (!window.shopify || typeof window.shopify.idToken !== 'function') {
+              subtitle.textContent = 'Open this page from Shopify Admin to connect automatically.';
+              setStatus('Automatic connect is available inside Shopify Admin only. Use the reconnect button if needed.', 'warning');
+              return;
+            }
+
+            try {
+              const token = await window.shopify.idToken();
+              const response = await fetch('/api/admin/connect', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: 'Bearer ' + token,
+                },
+                body: JSON.stringify({source: 'app_home'}),
+              });
+              const data = await response.json();
+
+              if (!response.ok || !data.ok) {
+                throw new Error(data.error || 'Could not connect this store.');
+              }
+
+              subtitle.textContent = 'Store connected.';
+              setStatus('Connected: ' + (data.name || data.shop) + '. Now the order status tracking block can read this store orders.', 'success');
+            } catch (error) {
+              subtitle.textContent = 'Store connection needs attention.';
+              setStatus(error.message || 'Could not connect this store. Reopen the app from Shopify Admin.', 'error');
+            }
+          }
+
+          connectStore();
+        </script>
+      </body>
+    </html>
+  `;
 }
 
 function assertConfig() {
