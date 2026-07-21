@@ -144,6 +144,7 @@ function TimelineStep({item}) {
         <s-text>{item.text}</s-text>
         {item.detail ? <s-text color="subdued">{item.detail}</s-text> : null}
         {item.date ? <s-text color="subdued">{formatDateTime(item.date)}</s-text> : null}
+        {item.updates?.length ? <PreparationUpdates item={item} /> : null}
         {url ? (
           <s-link href={url} target="_blank">
             {trackingLinkLabel(url)}
@@ -151,6 +152,24 @@ function TimelineStep({item}) {
         ) : null}
       </s-stack>
     </s-box>
+  );
+}
+
+function PreparationUpdates({item}) {
+  return (
+    <s-details defaultOpen={item.state === 'active'}>
+      <s-summary>{item.summaryLabel || `${item.updates.length} preparation updates available`}</s-summary>
+      <s-stack direction="block" gap="small-300">
+        {item.updates.map((update, index) => (
+          <s-box key={`${update.date}-${index}`} padding="small-200" border="base" borderRadius="base">
+            <s-stack direction="block" gap="small-100">
+              <s-text>{update.text}</s-text>
+              <s-text color="subdued">{formatDateTime(update.date)}</s-text>
+            </s-stack>
+          </s-box>
+        ))}
+      </s-stack>
+    </s-details>
   );
 }
 
@@ -216,6 +235,7 @@ function buildTimeline(order, shipments) {
   const isDelivered =
     Boolean(deliveredAt) ||
     shipments.some((shipment) => String(shipment.displayStatus || shipment.status || '').toLowerCase().includes('delivered'));
+  const preparationUpdates = buildPreparationUpdates(order?.processedAt, shippedAt);
 
   return [
     {
@@ -230,6 +250,8 @@ function buildTimeline(order, shipments) {
       text: 'Your item is being checked, packed, and prepared for shipment.',
       state: hasShipment ? 'complete' : 'active',
       marker: hasShipment ? 'Complete' : 'Current',
+      updates: preparationUpdates,
+      summaryLabel: `${preparationUpdates.length} preparation updates available`,
     },
     {
       title: hasTracking ? 'Shipped' : 'Tracking coming soon',
@@ -252,6 +274,32 @@ function buildTimeline(order, shipments) {
       marker: isDelivered ? 'Complete' : hasTracking ? 'Next' : 'Next',
     },
   ];
+}
+
+function buildPreparationUpdates(startValue, stopValue) {
+  const startDate = parseDate(startValue);
+  if (!startDate) return [];
+
+  const stopDate = parseDate(stopValue) || new Date();
+  const messages = [
+    'Your item is being checked, packed, and prepared for shipment.',
+    'Your order is moving through our quality check and packing process.',
+    'Your package preparation is in progress and will be updated once it is shipped.',
+  ];
+  const updates = [];
+  const twoDaysMs = 2 * 24 * 60 * 60 * 1000;
+
+  for (let index = 0; index < messages.length; index += 1) {
+    const updateDate = new Date(startDate.getTime() + index * twoDaysMs);
+    if (updateDate.getTime() > stopDate.getTime()) break;
+
+    updates.push({
+      text: messages[index],
+      date: updateDate.toISOString(),
+    });
+  }
+
+  return updates;
 }
 
 function trackingLabel(tracking) {
@@ -318,4 +366,10 @@ function formatDateTime(value) {
     hour: 'numeric',
     minute: '2-digit',
   });
+}
+
+function parseDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
