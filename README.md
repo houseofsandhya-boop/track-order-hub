@@ -24,8 +24,8 @@ For one store, a custom app install link is fine. For multiple unrelated merchan
    - `client_id`
    - `application_url`
    - `auth.redirect_urls`
-4. Update `extensions/order-tracking-block/src/OrderTrackingBlock.jsx`:
-   - Replace `https://your-app-domain.com/api/order-tracking` with your live app URL.
+4. Update `extensions/order-tracking-block/src/OrderTrackingBlock.jsx` if the Railway domain changes:
+   - Current API endpoint: `https://track-order-hub-production.up.railway.app/api/order-tracking`
 5. Install dependencies:
 
 ```bash
@@ -55,7 +55,7 @@ npm run deploy
 After the app is hosted and deployed, install it on a store with:
 
 ```text
-https://your-app-domain.com/auth?shop=store-name.myshopify.com
+https://track-order-hub-production.up.railway.app/auth?shop=store-name.myshopify.com
 ```
 
 Then in Shopify Admin:
@@ -73,14 +73,20 @@ Set these Railway environment variables:
 ```text
 SHOPIFY_API_KEY=your_shopify_partner_app_client_id
 SHOPIFY_API_SECRET=your_shopify_partner_app_client_secret
-APP_URL=https://your-railway-domain
+APP_URL=https://track-order-hub-production.up.railway.app
 SCOPES=read_orders
 SHOPIFY_API_VERSION=2026-07
 ```
 
 If `APP_URL` is not set, the backend tries to use Railway's `RAILWAY_PUBLIC_DOMAIN`, but Shopify Partner app settings still need the final production URL.
 
-After Railway gives you the live URL:
+Railway live URL:
+
+```text
+https://track-order-hub-production.up.railway.app
+```
+
+If Railway gives you a different live URL later:
 
 1. Update `shopify.app.toml` with the live URL and callback.
 2. Update `extensions/order-tracking-block/src/OrderTrackingBlock.jsx` so `API_ENDPOINT` uses the live URL.

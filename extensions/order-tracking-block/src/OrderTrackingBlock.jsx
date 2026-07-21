@@ -2,7 +2,7 @@ import '@shopify/ui-extensions/preact';
 import {render} from 'preact';
 import {useEffect, useMemo, useState} from 'preact/hooks';
 
-const API_ENDPOINT = 'https://your-app-domain.com/api/order-tracking';
+const API_ENDPOINT = 'https://track-order-hub-production.up.railway.app/api/order-tracking';
 
 export default async () => {
   render(<OrderTrackingBlock />, document.body);
