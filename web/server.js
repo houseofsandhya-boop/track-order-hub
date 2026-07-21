@@ -640,6 +640,9 @@ function escapeHtml(value) {
 function renderAppHome(shop) {
   const installPath = `/auth?shop=${encodeURIComponent(shop || 'your-store.myshopify.com')}`;
   const installLabel = `${config.appUrl}${installPath}`;
+  const statusMessage = shop
+    ? 'Click connect to authorize this store for order tracking.'
+    : 'Open this app from Shopify Admin, or use the manual connect URL with your myshopify domain.';
 
   return `
     <!doctype html>
@@ -648,7 +651,6 @@ function renderAppHome(shop) {
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="shopify-api-key" content="${escapeHtml(config.apiKey || '')}" />
-        <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
         <style>
           body {
             font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -710,6 +712,9 @@ function renderAppHome(shop) {
             text-decoration: none;
             font-weight: 650;
           }
+          .secondary {
+            background: #4b5563;
+          }
         </style>
       </head>
       <body>
@@ -717,54 +722,13 @@ function renderAppHome(shop) {
           <section>
             <h1>Track Order Hub</h1>
             <p>This app adds an order tracking block to the Customer Accounts order status page.</p>
-            <p id="subtitle">Connecting this store...</p>
-            <div id="status" class="status">Waiting for Shopify Admin session.</div>
-            <a class="button" href="${escapeHtml(installPath)}">Reconnect with OAuth</a>
+            <p>${escapeHtml(statusMessage)}</p>
+            <div class="status warning">If the order status block says the store is not connected, authorize the app once from here.</div>
+            <a class="button" target="_top" href="${escapeHtml(installPath)}">Connect store</a>
+            <a class="button secondary" target="_top" href="${escapeHtml(installPath)}">Reconnect with OAuth</a>
             <p><small>Manual connect URL: <code>${escapeHtml(installLabel)}</code></small></p>
           </section>
         </main>
-        <script>
-          const statusBox = document.getElementById('status');
-          const subtitle = document.getElementById('subtitle');
-
-          function setStatus(message, className) {
-            statusBox.textContent = message;
-            statusBox.className = 'status ' + (className || '');
-          }
-
-          async function connectStore() {
-            if (!window.shopify || typeof window.shopify.idToken !== 'function') {
-              subtitle.textContent = 'Open this page from Shopify Admin to connect automatically.';
-              setStatus('Automatic connect is available inside Shopify Admin only. Use the reconnect button if needed.', 'warning');
-              return;
-            }
-
-            try {
-              const token = await window.shopify.idToken();
-              const response = await fetch('/api/admin/connect', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Authorization: 'Bearer ' + token,
-                },
-                body: JSON.stringify({source: 'app_home'}),
-              });
-              const data = await response.json();
-
-              if (!response.ok || !data.ok) {
-                throw new Error(data.error || 'Could not connect this store.');
-              }
-
-              subtitle.textContent = 'Store connected.';
-              setStatus('Connected: ' + (data.name || data.shop) + '. Now the order status tracking block can read this store orders.', 'success');
-            } catch (error) {
-              subtitle.textContent = 'Store connection needs attention.';
-              setStatus(error.message || 'Could not connect this store. Reopen the app from Shopify Admin.', 'error');
-            }
-          }
-
-          connectStore();
-        </script>
       </body>
     </html>
   `;
