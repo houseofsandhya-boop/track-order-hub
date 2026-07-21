@@ -1,5 +1,5 @@
 name = "Track Order Hub"
-client_id = "replace_with_partner_dashboard_client_id"
+client_id = "bb434ba155e0204b0fdd80e2b604a364"
 application_url = "https://track-order-hub-production.up.railway.app"
 embedded = true
 handle = "track-order-hub"
