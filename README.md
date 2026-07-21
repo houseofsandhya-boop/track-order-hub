@@ -64,6 +64,20 @@ Then in Shopify Admin:
 Settings > Checkout > Customize > Order status > Add block > Track order block
 ```
 
+## HOS custom testing app
+
+The main `shopify.app.toml` is linked to the public distribution app. For immediate HOS testing, create a separate custom-distribution app in the Shopify Dev Dashboard and use `shopify.app.hos.toml`.
+
+After creating the custom app:
+
+1. Replace `replace_with_hos_custom_app_client_id` in `shopify.app.hos.toml`.
+2. Set Railway variables `SHOPIFY_API_KEY` and `SHOPIFY_API_SECRET` to the custom app's Client ID and Client secret.
+3. Deploy the custom app extension:
+
+```bash
+shopify app deploy --config hos --allow-updates --source-control-url https://github.com/houseofsandhya-boop/track-order-hub --message "Release HOS custom order tracking extension"
+```
+
 ## GitHub and Railway deploy
 
 Railway should deploy this repo from GitHub. The backend runs with `npm start`, listens on Railway's `PORT`, and exposes `/healthz` for health checks.
