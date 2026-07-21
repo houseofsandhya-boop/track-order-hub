@@ -1,0 +1,7 @@
+roles = ["frontend", "backend"]
+auth_callback_path = ["/auth/callback"]
+webhooks_path = "/webhooks"
+
+[commands]
+dev = "node web/server.js"
+build = "node --check web/server.js"

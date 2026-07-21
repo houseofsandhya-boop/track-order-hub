@@ -1,0 +1,15 @@
+api_version = "2026-07"
+
+[[extensions]]
+type = "ui_extension"
+name = "Track order block"
+handle = "track-order-block"
+uid = "7f4c4f8d-6f58-45b7-9e62-ea99b2cb78a6"
+description = "Shows live fulfillment and courier tracking details on the order status page."
+
+[[extensions.targeting]]
+target = "customer-account.order-status.block.render"
+module = "./src/OrderTrackingBlock.jsx"
+
+[extensions.capabilities]
+network_access = true

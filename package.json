@@ -1,0 +1,25 @@
+{
+  "name": "track-order-hub",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "shopify app dev",
+    "serve": "node web/server.js",
+    "start": "node web/server.js",
+    "build": "shopify app build",
+    "deploy": "shopify app deploy",
+    "check": "node --check web/server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "@shopify/ui-extensions": "latest",
+    "preact": "^10.26.4"
+  }
+}

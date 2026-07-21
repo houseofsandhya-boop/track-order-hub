@@ -1,0 +1,21 @@
+name = "Track Order Hub"
+client_id = "replace_with_partner_dashboard_client_id"
+application_url = "https://your-app-domain.com"
+embedded = true
+handle = "track-order-hub"
+web_directories = ["."]
+
+[build]
+automatically_update_urls_on_dev = true
+include_config_on_deploy = true
+
+[access_scopes]
+scopes = "read_orders"
+
+[auth]
+redirect_urls = [
+  "https://your-app-domain.com/auth/callback"
+]
+
+[webhooks]
+api_version = "2026-07"
