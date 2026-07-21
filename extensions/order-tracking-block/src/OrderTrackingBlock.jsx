@@ -132,6 +132,8 @@ function OrderTrackingBlock() {
 }
 
 function TimelineStep({item}) {
+  const url = trackingUrl(item.tracking);
+
   return (
     <s-box padding="base" border="base" borderRadius="base">
       <s-stack direction="block" gap="small-100">
@@ -142,9 +144,9 @@ function TimelineStep({item}) {
         <s-text>{item.text}</s-text>
         {item.detail ? <s-text color="subdued">{item.detail}</s-text> : null}
         {item.date ? <s-text color="subdued">{formatDateTime(item.date)}</s-text> : null}
-        {item.url ? (
-          <s-link href={item.url} target="_blank">
-            {trackingLinkLabel(item.url)}
+        {url ? (
+          <s-link href={url} target="_blank">
+            {trackingLinkLabel(url)}
           </s-link>
         ) : null}
       </s-stack>
@@ -185,11 +187,11 @@ function ShipmentCard({shipment}) {
             {tracking.map((item, index) => (
               <s-stack direction="block" gap="small-100" key={`${item.number}-${index}`}>
                 <s-text type="strong">
-                  {item.company || 'Courier'} {item.number ? `- ${item.number}` : ''}
+                  {carrierName(item) || 'Courier'} {item.number ? `- ${item.number}` : ''}
                 </s-text>
-                {item.url ? (
-                  <s-link href={item.url} target="_blank">
-                    {trackingLinkLabel(item.url)}
+                {trackingUrl(item) ? (
+                  <s-link href={trackingUrl(item)} target="_blank">
+                    {trackingLinkLabel(trackingUrl(item))}
                   </s-link>
                 ) : null}
               </s-stack>
@@ -236,7 +238,7 @@ function buildTimeline(order, shipments) {
       date: shippedAt,
       state: hasTracking ? 'complete' : hasShipment ? 'active' : 'pending',
       marker: hasTracking ? 'Complete' : hasShipment ? 'Current' : 'Next',
-      url: firstTracking?.url || '',
+      tracking: firstTracking,
     },
     {
       title: isDelivered ? 'Delivered' : 'Estimated delivery',
@@ -260,7 +262,16 @@ function trackingLabel(tracking) {
 
 function carrierName(tracking) {
   if (tracking?.url && /shiprocket/i.test(tracking.url)) return 'Shiprocket';
+  if (tracking?.number && (!tracking?.company || /other/i.test(tracking.company))) return 'Shiprocket';
   return tracking?.company || '';
+}
+
+function trackingUrl(tracking) {
+  if (tracking?.url) return tracking.url;
+  if (tracking?.number && (!tracking?.company || /other/i.test(tracking.company))) {
+    return `https://shiprocket.co/tracking/${encodeURIComponent(tracking.number)}`;
+  }
+  return '';
 }
 
 function trackingLinkLabel(url = '') {
