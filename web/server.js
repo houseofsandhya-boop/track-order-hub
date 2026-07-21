@@ -66,21 +66,18 @@ app.get('/auth/callback', async (req, res) => {
     const shop = normalizeShop(req.query.shop);
     const {code, state} = req.query;
 
-    if (!shop || typeof code !== 'string' || typeof state !== 'string') {
+    if (!shop || typeof code !== 'string') {
       res.status(400).send('Invalid OAuth callback.');
       return;
     }
 
-    if (!stateStore.has(state)) {
-      res.status(403).send('Invalid OAuth state.');
-      return;
-    }
-
-    stateStore.delete(state);
-
     if (!verifyShopifyHmac(req.query)) {
       res.status(403).send('Invalid OAuth HMAC.');
       return;
+    }
+
+    if (typeof state === 'string' && stateStore.has(state)) {
+      stateStore.delete(state);
     }
 
     const tokenResponse = await fetch(`https://${shop}/admin/oauth/access_token`, {
@@ -149,7 +146,7 @@ app.post('/api/order-tracking', async (req, res) => {
     }
 
     const sessionStore = await readSessionStore();
-    const shop = resolveShop(sessionStore, shopIdentity);
+    const shop = await resolveShop(sessionStore, shopIdentity);
     const session = shop ? sessionStore.shops[shop] : null;
 
     if (!session?.accessToken) {
@@ -405,14 +402,55 @@ function normalizeShopFromUrlOrDomain(source) {
   }
 }
 
-function resolveShop(sessionStore, identity) {
+async function resolveShop(sessionStore, identity) {
   if (identity.shop && sessionStore.shops[identity.shop]) return identity.shop;
   if (identity.shopId && sessionStore.shopIds[identity.shopId]) return sessionStore.shopIds[identity.shopId];
   if (identity.shopLegacyId && sessionStore.shopLegacyIds[identity.shopLegacyId]) {
     return sessionStore.shopLegacyIds[identity.shopLegacyId];
   }
 
+  const refreshedShop = await refreshAndResolveShop(sessionStore, identity);
+  if (refreshedShop) return refreshedShop;
+
   return '';
+}
+
+async function refreshAndResolveShop(sessionStore, identity) {
+  let changed = false;
+
+  for (const [shop, session] of Object.entries(sessionStore.shops || {})) {
+    if (!session?.accessToken) continue;
+
+    if (matchesShopIdentity(session, identity)) return shop;
+
+    const metadata = await fetchShopMetadata(shop, session.accessToken);
+    if (!metadata.id && !metadata.legacyId) continue;
+
+    session.shopId = metadata.id || session.shopId || '';
+    session.shopLegacyId = metadata.legacyId || session.shopLegacyId || '';
+    session.myshopifyDomain = metadata.myshopifyDomain || session.myshopifyDomain || shop;
+    session.name = metadata.name || session.name || '';
+
+    if (session.shopId) sessionStore.shopIds[session.shopId] = shop;
+    if (session.shopLegacyId) sessionStore.shopLegacyIds[session.shopLegacyId] = shop;
+
+    changed = true;
+    if (matchesShopIdentity(session, identity)) {
+      await writeSessionStore(sessionStore);
+      return shop;
+    }
+  }
+
+  if (changed) await writeSessionStore(sessionStore);
+  return '';
+}
+
+function matchesShopIdentity(session, identity) {
+  return Boolean(
+    (identity.shop && identity.shop === session.myshopifyDomain) ||
+      (identity.shopId && identity.shopId === session.shopId) ||
+      (identity.shopLegacyId && identity.shopLegacyId === session.shopLegacyId),
+  );
 }
 
 function readBearerToken(req) {
