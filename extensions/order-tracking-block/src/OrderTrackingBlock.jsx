@@ -144,7 +144,7 @@ function TimelineStep({item}) {
         {item.date ? <s-text color="subdued">{formatDateTime(item.date)}</s-text> : null}
         {item.url ? (
           <s-link href={item.url} target="_blank">
-            Open tracking details
+            {trackingLinkLabel(item.url)}
           </s-link>
         ) : null}
       </s-stack>
@@ -189,7 +189,7 @@ function ShipmentCard({shipment}) {
                 </s-text>
                 {item.url ? (
                   <s-link href={item.url} target="_blank">
-                    Open courier tracking
+                    {trackingLinkLabel(item.url)}
                   </s-link>
                 ) : null}
               </s-stack>
@@ -253,9 +253,19 @@ function buildTimeline(order, shipments) {
 }
 
 function trackingLabel(tracking) {
-  const company = tracking?.company || 'Courier';
+  const company = carrierName(tracking) || 'Courier';
   const number = tracking?.number ? ` tracking number ${tracking.number}` : '';
   return `${company}${number}`;
+}
+
+function carrierName(tracking) {
+  if (tracking?.url && /shiprocket/i.test(tracking.url)) return 'Shiprocket';
+  return tracking?.company || '';
+}
+
+function trackingLinkLabel(url = '') {
+  if (/shiprocket/i.test(url)) return 'Track live on Shiprocket';
+  return 'Open courier tracking';
 }
 
 function toneForTimelineState(state = '') {
