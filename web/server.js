@@ -378,14 +378,20 @@ function extractShopIdentityFromSessionToken(payload) {
     const normalizedShop = normalizeShopFromUrlOrDomain(source);
     if (normalizedShop) identity.shop = normalizedShop;
 
-    const legacyMatch = source.match(/shopify\.com\/(\d+)\/account/);
-    if (legacyMatch) {
-      identity.shopLegacyId = legacyMatch[1];
-      identity.shopId = `gid://shopify/Shop/${legacyMatch[1]}`;
+    const legacyId = extractShopLegacyId(source);
+    if (legacyId) {
+      identity.shopLegacyId = legacyId;
+      identity.shopId = `gid://shopify/Shop/${legacyId}`;
     }
   }
 
   return identity;
+}
+
+function extractShopLegacyId(source) {
+  const text = String(source || '');
+  const match = text.match(/shopify\.com\/(\d+)(?:[/?#]|$)/) || text.match(/\/Shop\/(\d+)(?:[/?#]|$)/);
+  return match ? match[1] : '';
 }
 
 function normalizeShopFromUrlOrDomain(source) {
