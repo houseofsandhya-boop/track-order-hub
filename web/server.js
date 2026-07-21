@@ -10,6 +10,7 @@ const __dirname = path.dirname(__filename);
 const dataDir = path.resolve(__dirname, '..', 'data');
 const sessionsFile = path.join(dataDir, 'sessions.json');
 const stateStore = new Map();
+const sessionTokenLeewaySeconds = 300;
 
 const config = {
   apiKey: process.env.SHOPIFY_API_KEY,
@@ -36,6 +37,7 @@ app.get('/healthz', (_req, res) => {
   res.json({
     ok: true,
     commit: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) || 'local',
+    sessionTokenLeewaySeconds,
   });
 });
 
@@ -388,8 +390,8 @@ function verifySessionToken(token) {
   const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'));
   const now = Math.floor(Date.now() / 1000);
 
-  if (payload.exp && payload.exp < now) throw new Error('Session token expired');
-  if (payload.nbf && payload.nbf > now) throw new Error('Session token is not active yet');
+  if (payload.exp && payload.exp + sessionTokenLeewaySeconds < now) throw new Error('Session token expired');
+  if (payload.nbf && payload.nbf - sessionTokenLeewaySeconds > now) throw new Error('Session token is not active yet');
   if (payload.aud && payload.aud !== config.apiKey) throw new Error('Session token audience mismatch');
 
   return payload;
