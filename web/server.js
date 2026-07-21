@@ -17,6 +17,7 @@ const config = {
   appUrl: process.env.APP_URL || railwayAppUrl(),
   scopes: process.env.SCOPES || 'read_orders',
   apiVersion: process.env.SHOPIFY_API_VERSION || '2026-07',
+  shopIdAliases: parseShopIdAliases(process.env.SHOP_ID_ALIASES),
   port: Number(process.env.PORT || 3000),
 };
 
@@ -147,14 +148,18 @@ app.post('/api/order-tracking', async (req, res) => {
 
     const sessionStore = await readSessionStore();
     const shop = await resolveShop(sessionStore, shopIdentity);
-    const session = shop ? sessionStore.shops[shop] : null;
+    let session = shop ? sessionStore.shops[shop] : null;
+
+    if (!session?.accessToken) {
+      session = await createSessionFromTokenExchange(sessionStore, shopIdentity, token);
+    }
 
     if (!session?.accessToken) {
       res.status(401).json({ok: false, error: 'App is not installed for this store.'});
       return;
     }
 
-    const tracking = await fetchOrderTracking(shop, session.accessToken, orderId);
+    const tracking = await fetchOrderTracking(session.myshopifyDomain, session.accessToken, orderId);
     res.json({ok: true, ...tracking});
   } catch (error) {
     console.error(error);
@@ -415,6 +420,80 @@ async function resolveShop(sessionStore, identity) {
   return '';
 }
 
+async function createSessionFromTokenExchange(sessionStore, identity, sessionToken) {
+  const shop = shopDomainFromIdentity(identity);
+  if (!shop) return null;
+
+  const tokenData = await exchangeSessionTokenForOfflineAccessToken(shop, sessionToken);
+  if (!tokenData?.access_token) return null;
+
+  const shopMetadata = await fetchShopMetadata(shop, tokenData.access_token);
+  const session = {
+    accessToken: tokenData.access_token,
+    scope: tokenData.scope,
+    shopId: shopMetadata.id,
+    shopLegacyId: shopMetadata.legacyId || identity.shopLegacyId,
+    myshopifyDomain: shopMetadata.myshopifyDomain || shop,
+    name: shopMetadata.name,
+    installedAt: new Date().toISOString(),
+    source: 'token_exchange',
+  };
+
+  const sessionShop = session.myshopifyDomain;
+  sessionStore.shops[sessionShop] = session;
+  if (session.shopId) sessionStore.shopIds[session.shopId] = sessionShop;
+  if (session.shopLegacyId) sessionStore.shopLegacyIds[session.shopLegacyId] = sessionShop;
+
+  await writeSessionStore(sessionStore);
+  return session;
+}
+
+async function exchangeSessionTokenForOfflineAccessToken(shop, sessionToken) {
+  const body = new URLSearchParams({
+    client_id: config.apiKey,
+    client_secret: config.apiSecret,
+    grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
+    subject_token: sessionToken,
+    subject_token_type: 'urn:ietf:params:oauth:token-type:id_token',
+    requested_token_type: 'urn:shopify:params:oauth:token-type:offline-access-token',
+  });
+
+  const response = await fetch(`https://${shop}/admin/oauth/access_token`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body,
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    console.error('Token exchange failed', {
+      shop,
+      status: response.status,
+      error: data?.error,
+      errorDescription: data?.error_description,
+    });
+    return null;
+  }
+
+  return data;
+}
+
+function shopDomainFromIdentity(identity) {
+  if (identity.shop) return identity.shop;
+  if (identity.shopLegacyId && config.shopIdAliases[identity.shopLegacyId]) {
+    return config.shopIdAliases[identity.shopLegacyId];
+  }
+  if (identity.shopId) {
+    const legacyId = extractGidNumber(identity.shopId);
+    if (legacyId && config.shopIdAliases[legacyId]) return config.shopIdAliases[legacyId];
+  }
+
+  return '';
+}
+
 async function refreshAndResolveShop(sessionStore, identity) {
   let changed = false;
 
@@ -547,4 +626,20 @@ function assertConfig() {
 function railwayAppUrl() {
   if (!process.env.RAILWAY_PUBLIC_DOMAIN) return '';
   return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+}
+
+function parseShopIdAliases(value) {
+  const aliases = {
+    65006665833: 'vxfxj7-10.myshopify.com',
+    81793286357: 'hos-address-test.myshopify.com',
+  };
+
+  for (const pair of String(value || '').split(',')) {
+    const [rawId, rawShop] = pair.split(':');
+    const id = String(rawId || '').trim();
+    const shop = normalizeShop(rawShop);
+    if (id && shop) aliases[id] = shop;
+  }
+
+  return aliases;
 }
