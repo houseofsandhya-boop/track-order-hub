@@ -108,7 +108,7 @@ function OrderTrackingBlock() {
         <s-box padding="base" border="base" borderRadius="base">
           <s-stack direction="block" gap="base">
             <s-stack direction="inline" gap="small-200" inlineAlignment="space-between">
-              <s-badge tone="info">Order progress</s-badge>
+              <s-text type="strong">Order progress</s-text>
               {state.data?.order?.name ? <s-text color="subdued">Status for {state.data.order.name}</s-text> : null}
             </s-stack>
 
@@ -133,10 +133,12 @@ function OrderTrackingBlock() {
 
 function TimelineStep({item}) {
   return (
-    <s-stack direction="inline" gap="base" inlineAlignment="start">
-      <s-badge tone={toneForTimelineState(item.state)}>{item.marker}</s-badge>
+    <s-box padding="base" border="base" borderRadius="base">
       <s-stack direction="block" gap="small-100">
-        <s-text type="strong">{item.title}</s-text>
+        <s-stack direction="inline" gap="small-200" inlineAlignment="space-between">
+          <s-text type="strong">{item.title}</s-text>
+          <s-badge tone={toneForTimelineState(item.state)}>{item.marker}</s-badge>
+        </s-stack>
         <s-text>{item.text}</s-text>
         {item.detail ? <s-text color="subdued">{item.detail}</s-text> : null}
         {item.date ? <s-text color="subdued">{formatDateTime(item.date)}</s-text> : null}
@@ -146,7 +148,7 @@ function TimelineStep({item}) {
           </s-link>
         ) : null}
       </s-stack>
-    </s-stack>
+    </s-box>
   );
 }
 
@@ -219,13 +221,13 @@ function buildTimeline(order, shipments) {
       text: 'We have received your order and started processing it.',
       date: order?.processedAt,
       state: 'complete',
-      marker: 'Done',
+      marker: 'Complete',
     },
     {
       title: 'Preparing your order',
       text: 'Your item is being checked, packed, and prepared for shipment.',
       state: hasShipment ? 'complete' : 'active',
-      marker: hasShipment ? 'Done' : 'Now',
+      marker: hasShipment ? 'Complete' : 'Current',
     },
     {
       title: hasTracking ? 'Shipped' : 'Tracking coming soon',
@@ -233,7 +235,7 @@ function buildTimeline(order, shipments) {
       detail: hasShipment && !hasTracking ? 'Your order has been fulfilled, but courier details are not available yet.' : '',
       date: shippedAt,
       state: hasTracking ? 'complete' : hasShipment ? 'active' : 'pending',
-      marker: hasTracking ? 'Done' : hasShipment ? 'Now' : 'Next',
+      marker: hasTracking ? 'Complete' : hasShipment ? 'Current' : 'Next',
       url: firstTracking?.url || '',
     },
     {
@@ -245,7 +247,7 @@ function buildTimeline(order, shipments) {
           : '18 to 20 days from the date of confirmation.',
       date: deliveredAt,
       state: isDelivered ? 'complete' : hasTracking ? 'active' : 'pending',
-      marker: isDelivered ? 'Done' : hasTracking ? 'Next' : 'Next',
+      marker: isDelivered ? 'Complete' : hasTracking ? 'Next' : 'Next',
     },
   ];
 }
