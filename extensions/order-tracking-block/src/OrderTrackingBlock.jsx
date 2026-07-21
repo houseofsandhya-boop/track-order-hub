@@ -67,7 +67,7 @@ function OrderTrackingBlock() {
 
   const shipments = state.data?.shipments || [];
   const hasTracking = shipments.some((shipment) => shipment.tracking?.length);
-  const latestStatus = useMemo(() => getLatestStatus(state.data?.order, shipments), [state.data]);
+  const timeline = useMemo(() => buildTimeline(state.data?.order, shipments), [state.data]);
 
   if (state.status === 'loading') {
     return (
@@ -101,24 +101,52 @@ function OrderTrackingBlock() {
           <s-text color="subdued">
             {hasTracking
               ? 'Your courier tracking details are available below.'
-              : latestStatus || 'Your order is being prepared for shipment.'}
+              : 'Your order is being prepared for shipment.'}
           </s-text>
         </s-stack>
 
-        {shipments.length > 0 ? (
-          shipments.map((shipment) => (
-            <ShipmentCard key={shipment.id} shipment={shipment} />
-          ))
-        ) : (
-          <s-box padding="base" border="base" borderRadius="base">
-            <s-stack direction="block" gap="small-200">
-              <s-badge tone="info">Preparing</s-badge>
-              <s-text>Tracking details will appear here once the order is shipped.</s-text>
+        <s-box padding="base" border="base" borderRadius="base">
+          <s-stack direction="block" gap="base">
+            <s-stack direction="inline" gap="small-200" inlineAlignment="space-between">
+              <s-badge tone="info">Order progress</s-badge>
+              {state.data?.order?.name ? <s-text color="subdued">Status for {state.data.order.name}</s-text> : null}
             </s-stack>
-          </s-box>
-        )}
+
+            {timeline.map((item) => (
+              <TimelineStep key={item.title} item={item} />
+            ))}
+          </s-stack>
+        </s-box>
+
+        {shipments.length > 0 ? (
+          <s-stack direction="block" gap="small-300">
+            <s-text type="strong">Shipment details</s-text>
+            {shipments.map((shipment) => (
+              <ShipmentCard key={shipment.id} shipment={shipment} />
+            ))}
+          </s-stack>
+        ) : null}
       </s-stack>
     </s-section>
+  );
+}
+
+function TimelineStep({item}) {
+  return (
+    <s-stack direction="inline" gap="base" inlineAlignment="start">
+      <s-badge tone={toneForTimelineState(item.state)}>{item.marker}</s-badge>
+      <s-stack direction="block" gap="small-100">
+        <s-text type="strong">{item.title}</s-text>
+        <s-text>{item.text}</s-text>
+        {item.detail ? <s-text color="subdued">{item.detail}</s-text> : null}
+        {item.date ? <s-text color="subdued">{formatDateTime(item.date)}</s-text> : null}
+        {item.url ? (
+          <s-link href={item.url} target="_blank">
+            Open tracking details
+          </s-link>
+        ) : null}
+      </s-stack>
+    </s-stack>
   );
 }
 
@@ -173,12 +201,65 @@ function ShipmentCard({shipment}) {
   );
 }
 
-function getLatestStatus(order, shipments) {
-  if (order?.cancelledAt) return `This order was cancelled on ${formatDate(order.cancelledAt)}.`;
-  if (shipments.some((shipment) => shipment.deliveredAt)) return 'At least one shipment has been delivered.';
-  if (shipments.some((shipment) => shipment.inTransitAt)) return 'Your shipment is in transit.';
-  if (shipments.length > 0) return 'Your order has shipment updates.';
-  return '';
+function buildTimeline(order, shipments) {
+  const firstShipment = shipments[0];
+  const firstTracking = shipments.flatMap((shipment) => shipment.tracking || []).find((item) => item.number || item.url);
+  const shippedAt = firstShipment?.inTransitAt || firstShipment?.createdAt || '';
+  const deliveredAt = shipments.find((shipment) => shipment.deliveredAt)?.deliveredAt || '';
+  const estimatedAt = firstShipment?.estimatedDeliveryAt || '';
+  const hasTracking = Boolean(firstTracking);
+  const hasShipment = shipments.length > 0;
+  const isDelivered =
+    Boolean(deliveredAt) ||
+    shipments.some((shipment) => String(shipment.displayStatus || shipment.status || '').toLowerCase().includes('delivered'));
+
+  return [
+    {
+      title: 'Order confirmed',
+      text: 'We have received your order and started processing it.',
+      date: order?.processedAt,
+      state: 'complete',
+      marker: 'Done',
+    },
+    {
+      title: 'Preparing your order',
+      text: 'Your item is being checked, packed, and prepared for shipment.',
+      state: hasShipment ? 'complete' : 'active',
+      marker: hasShipment ? 'Done' : 'Now',
+    },
+    {
+      title: hasTracking ? 'Shipped' : 'Tracking coming soon',
+      text: hasTracking ? trackingLabel(firstTracking) : 'Courier tracking will be shared once fulfillment is complete.',
+      detail: hasShipment && !hasTracking ? 'Your order has been fulfilled, but courier details are not available yet.' : '',
+      date: shippedAt,
+      state: hasTracking ? 'complete' : hasShipment ? 'active' : 'pending',
+      marker: hasTracking ? 'Done' : hasShipment ? 'Now' : 'Next',
+      url: firstTracking?.url || '',
+    },
+    {
+      title: isDelivered ? 'Delivered' : 'Estimated delivery',
+      text: isDelivered
+        ? 'Delivered successfully.'
+        : estimatedAt
+          ? `Estimated delivery ${formatDate(estimatedAt)}.`
+          : '18 to 20 days from the date of confirmation.',
+      date: deliveredAt,
+      state: isDelivered ? 'complete' : hasTracking ? 'active' : 'pending',
+      marker: isDelivered ? 'Done' : hasTracking ? 'Next' : 'Next',
+    },
+  ];
+}
+
+function trackingLabel(tracking) {
+  const company = tracking?.company || 'Courier';
+  const number = tracking?.number ? ` tracking number ${tracking.number}` : '';
+  return `${company}${number}`;
+}
+
+function toneForTimelineState(state = '') {
+  if (state === 'complete') return 'success';
+  if (state === 'active') return 'info';
+  return 'auto';
 }
 
 function toneForStatus(status = '') {
@@ -202,5 +283,16 @@ function formatDate(value) {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
+  });
+}
+
+function formatDateTime(value) {
+  if (!value) return '';
+  return new Date(value).toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
   });
 }
